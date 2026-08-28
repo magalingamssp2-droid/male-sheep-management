@@ -329,6 +329,8 @@ function pullFromGoogle(){
 function today(){return new Date().toISOString().slice(0,10)}
 document.querySelectorAll('.today').forEach(x=>x.value=today());
 
+setupAddNewDropdowns();
+
 function showPage(id){
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
  $(id).classList.add('active'); refresh();
@@ -336,8 +338,61 @@ function showPage(id){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function batches(){return [...new Set(db.sheep.map(x=>x.batch))]}
-function options(list,placeholder='தேர்வு செய்யவும்'){
- return '<option value="">'+placeholder+'</option>'+list.map(x=>`<option>${esc(x)}</option>`).join('');
+// Dropdowns can have user-added options.
+// Custom options are saved on this device so they remain after refresh/app update.
+const CUSTOM_DROPDOWN_KEY='maleSheepCustomDropdownOptions_v1';
+let customDropdownOptions=JSON.parse(localStorage.getItem(CUSTOM_DROPDOWN_KEY)||'{}');
+
+function saveCustomDropdownOptions(){
+ localStorage.setItem(CUSTOM_DROPDOWN_KEY,JSON.stringify(customDropdownOptions));
+}
+
+function options(list,placeholder='தேர்வு செய்யவும்',selectId=''){
+ const base=list.map(x=>`<option>${esc(x)}</option>`).join('');
+ const custom=(customDropdownOptions[selectId]||[])
+   .filter(x=>!list.some(y=>String(y)===String(x)))
+   .map(x=>`<option>${esc(x)}</option>`).join('');
+ return '<option value="">'+placeholder+'</option>'+base+custom+'<option value="__ADD_NEW__">＋ புதியதைச் சேர்க்கவும்</option>';
+}
+
+function setupAddNewDropdowns(){
+ document.querySelectorAll('select').forEach(sel=>{
+   // Avoid adding the listener twice.
+   if(sel.dataset.addNewReady==='1') return;
+   sel.dataset.addNewReady='1';
+
+   sel.addEventListener('change',function(){
+     if(this.value!=='__ADD_NEW__') return;
+
+     const id=this.id;
+     const label=(this.closest('.field')||this.parentElement)?.querySelector('label')?.textContent || 'விருப்பம்';
+     const value=prompt(label+' - புதியதை உள்ளிடவும்:');
+
+     if(value && value.trim()){
+       const v=value.trim();
+       customDropdownOptions[id]=customDropdownOptions[id]||[];
+
+       if(!customDropdownOptions[id].some(x=>String(x)===v)){
+         customDropdownOptions[id].push(v);
+         saveCustomDropdownOptions();
+       }
+
+       // Put the new value immediately before the "add new" item.
+       const addItem=this.querySelector('option[value="__ADD_NEW__"]');
+       const opt=document.createElement('option');
+       opt.textContent=v;
+       opt.value=v;
+       this.insertBefore(opt,addItem);
+       this.value=v;
+
+       // For sheep/batch selections, allow the newly added value to be used
+       // immediately. It will also remain available after refresh.
+       this.dispatchEvent(new Event('input',{bubbles:true}));
+     }else{
+       this.value='';
+     }
+   });
+ });
 }
 function refresh(){
  $('totalSheep').textContent=db.sheep.length;
@@ -348,8 +403,8 @@ function refresh(){
  $('todayFeedCost').textContent=money(f.reduce((a,x)=>a+Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0),0));
 
  $('sheepTable').innerHTML=db.sheep.map(x=>`<tr><td>${esc(x.no)}</td><td>${esc(x.batch)}</td><td>${esc(x.breed)}</td><td>${x.weight} kg</td><td>${money(x.price)}</td></tr>`).join('');
- $('fBatch').innerHTML=options(batches()); $('vBatch').innerHTML=options(batches()); $('saleBatch').innerHTML=options(batches()); $('reportBatch').innerHTML=options(batches()); $('cBatch').innerHTML=options(batches());
- $('xSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('wSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('saleSheep').innerHTML=options(db.sheep.map(x=>x.no),'முழு பேட்ச்');
+ $('fBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','fBatch'); $('vBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','vBatch'); $('saleBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','saleBatch'); $('reportBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','reportBatch'); $('cBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','cBatch');
+ $('xSheep').innerHTML=options(db.sheep.map(x=>x.no),'தேர்வு செய்யவும்','xSheep'); $('wSheep').innerHTML=options(db.sheep.map(x=>x.no),'தேர்வு செய்யவும்','wSheep'); $('saleSheep').innerHTML=options(db.sheep.map(x=>x.no),'முழு பேட்ச்','saleSheep');
  $('feedTable').innerHTML=db.feed.map(x=>`<tr><td>${x.date}</td><td>${esc(x.batch)}</td><td>${x.con}</td><td>${x.dry}</td><td>${money(Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0))}</td></tr>`).join('');
  $('sickTable').innerHTML=db.sick.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${esc(x.disease)}</td><td>${esc(x.status)}</td><td>${x.date}</td></tr>`).join('');
  $('weightTable').innerHTML=db.weight.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${x.weight} kg</td><td>${x.date}</td></tr>`).join('');
