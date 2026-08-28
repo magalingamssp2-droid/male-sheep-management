@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Male Sheep Management</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Noto Sans Tamil",sans-serif;background:#f4f7f4;color:#1f2937}
+header{position:sticky;top:0;z-index:20;background:#166534;color:white;padding:14px 16px;box-shadow:0 2px 8px #0002}
+header h1{font-size:20px;margin:0}
+.container{max-width:900px;margin:auto;padding:12px}
+.page{display:none}.page.active{display:block}
+.dashboard{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:white;border-radius:14px;padding:15px;box-shadow:0 2px 8px #0001;margin-bottom:12px}
+.stat{cursor:pointer;min-height:100px}.stat b{display:block;font-size:28px;color:#166534;margin-top:8px}
+button,.btn{border:0;border-radius:10px;padding:11px 14px;background:#166534;color:white;font-size:15px;cursor:pointer}
+button.secondary{background:#64748b}.danger{background:#b91c1c!important}
+.back{background:#475569;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+label{font-size:14px;font-weight:bold;display:block;margin-bottom:4px}
+input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-size:15px;background:white}
+textarea{min-height:70px;resize:vertical}
+.field{margin-bottom:11px}
+.full{grid-column:1/-1}
+.menu{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.menu button{background:#fff;color:#166534;border:1px solid #bbf7d0;text-align:left}
+.photo{width:120px;height:120px;object-fit:cover;border-radius:12px;border:2px dashed #94a3b8;display:block;margin-bottom:8px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;background:white;font-size:13px}
+th,td{border:1px solid #dbe3dc;padding:8px;text-align:left;white-space:nowrap}
+th{background:#dcfce7}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.small{font-size:12px;color:#64748b}
+.total{font-size:18px;font-weight:bold;color:#166534}
+.report-value{font-size:18px;font-weight:bold}
+.nav{display:flex;gap:7px;overflow:auto;margin-bottom:10px}
+.nav button{white-space:nowrap}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.dashboard{grid-template-columns:1fr 1fr}.card{padding:12px}header h1{font-size:18px}}
+</style>
+</head>
+<body>
+<header><h1>🐑 ஆண் ஆடு மேலாண்மை</h1></header>
+<div class="container">
+<div class="card" id="syncCard" style="border:2px solid #86efac">
+  <h3>☁️ Google Drive / Google Sheets Sync</h3>
+  <p class="small">இந்த முகவரி Google Apps Script Web App URL. ஒரே Google Sheet-ஐ இரண்டு மொபைல்களும் பயன்படுத்தலாம்.</p>
+  <div class="field">
+    <label>Google Apps Script URL</label>
+    <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/...../exec">
+  </div>
+  <div class="actions">
+    <button type="button" id="connectBtn">☁️ Connect & Sync</button>
+    <button type="button" class="secondary" id="pullBtn">↻ Google-லிருந்து Refresh</button>
+  </div>
+  <div id="syncStatus" class="small" style="margin-top:8px">இணைப்பு அமைக்கப்படவில்லை.</div>
+</div>
+
+<section id="home" class="page active">
+  <div class="dashboard">
+    <div class="card stat" onclick="showPage('sheep')">மொத்த ஆடுகள்<b id="totalSheep">0</b></div>
+    <div class="card stat" onclick="showPage('sick')">நோய்வாய்ப்பட்டவை<b id="totalSick">0</b></div>
+    <div class="card stat"><span>இன்றைய அடர் தீவனம்</span><b id="todayCon">0 kg</b></div>
+    <div class="card stat"><span>இன்றைய உலர் தீவனம்</span><b id="todayDry">0 kg</b></div>
+  </div>
+  <div class="card">
+    <h3>இன்றைய தீவனச் செலவு</h3>
+    <div class="total" id="todayFeedCost">₹0</div>
+  </div>
+  <div class="card">
+    <h3>முக்கிய பகுதிகள்</h3>
+    <div class="menu">
+      <button onclick="showPage('sheep')">🐑 ஆடுகள்</button>
+      <button onclick="showPage('feed')">🌾 தீவனம்</button>
+      <button onclick="showPage('sick')">🩺 நோய்வாய்ப்பட்டவை</button>
+      <button onclick="showPage('weight')">⚖️ எடை பதிவு</button>
+      <button onclick="showPage('vacc')">💉 தடுப்பூசி பதிவு</button>
+      <button onclick="showPage('stock')">🌾 தீவனம் இருப்பு</button>
+      <button onclick="showPage('sales')">💰 விற்பனை</button>
+      <button onclick="showPage('common')">🧾 பேட்ச் பொதுச் செலவு</button>
+      <button onclick="showPage('report')">📊 அறிக்கை</button>
+    </div>
+  </div>
+</section>
+
+<section id="sheep" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card">
+<h2>🐑 புதிய ஆடு சேர்க்கை</h2>
+<form id="sheepForm">
+<div class="grid">
+<div class="field"><label>ஆட்டின் புகைப்படம்</label><input id="sheepPhoto" type="file" accept="image/*" capture="environment"><img id="photoPreview" class="photo" style="display:none"></div>
+<div></div>
+<div class="field"><label>பேட்ச் நம்பர்</label><input id="sBatch" required></div>
+<div class="field"><label>ஆடு எண்</label><input id="sNo" required></div>
+<div class="field"><label>வாங்கிய சந்தை</label><select id="sMarket"><option>சந்தை 1</option><option>சந்தை 2</option><option>மற்றது</option></select></div>
+<div class="field"><label>பாலினம்</label><select id="sSex"><option>ஆண்</option><option>பெண்</option></select></div>
+<div class="field"><label>இனம்</label><select id="sBreed"><option>கிடா</option><option>மேச்சேரி</option><option>கொடி ஆடு</option><option>செம்மறியாடு</option><option>கலப்பு இனம்</option></select></div>
+<div class="field"><label>தற்போதைய எடை (kg)</label><input id="sWeight" type="number" step="0.1" required></div>
+<div class="field"><label>வாங்கிய தேதி</label><input id="sDate" type="date" class="today"></div>
+<div class="field"><label>வாங்கிய விலை (₹)</label><input id="sPrice" type="number" step="0.01"></div>
+
+<div class="field full"><label>குறிப்புகள்</label><textarea id="sNotes"></textarea></div>
+</div>
+<button>ஆடு சேமிக்க</button>
+</form>
+</div>
+<div class="card"><h3>ஆடுகள் பட்டியல்</h3><div class="table-wrap"><table><thead><tr><th>ஆடு</th><th>பேட்ச்</th><th>இனம்</th><th>எடை</th><th>விலை</th></tr></thead><tbody id="sheepTable"></tbody></table></div></div>
+</section>
+
+<section id="feed" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>🌾 தீவனப் பதிவு</h2>
+<form id="feedForm"><div class="grid">
+<div class="field"><label>பேட்ச் நம்பர்</label><select id="fBatch"></select></div>
+<div class="field"><label>ஆடு எண்ணிக்கை</label><input id="fCount" type="number" readonly></div>
+<div class="field"><label>அடர் தீவனம் (kg)</label><input id="fCon" type="number" step="0.01"></div>
+<div class="field"><label>அடர் தீவனம் விலை (₹/kg)</label><input id="fConPrice" type="number" step="0.01"></div>
+<div class="field"><label>உலர் தீவனம் (kg)</label><input id="fDry" type="number" step="0.01"></div>
+<div class="field"><label>உலர் தீவனம் விலை (₹/kg)</label><input id="fDryPrice" type="number" step="0.01"></div>
+<div class="field"><label>நேரம்</label><select id="fTime"><option>காலை</option><option>மதியம்</option><option>மாலை</option></select></div>
+</div><button>தீவனப் பதிவு சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>தேதி</th><th>பேட்ச்</th><th>அடர் kg</th><th>உலர் kg</th><th>செலவு</th></tr></thead><tbody id="feedTable"></tbody></table></div></div>
+</section>
+
+<section id="sick" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>🩺 நோய்வாய்ப்பட்டவை</h2>
+<form id="sickForm"><div class="grid">
+<div class="field"><label>ஆடு எண்</label><select id="xSheep"></select></div>
+<div class="field"><label>தேதி</label><input id="xDate" type="date" class="today"></div>
+<div class="field"><label>பேட்ச் நம்பர்</label><input id="xBatch" readonly></div>
+<div class="field"><label>நோய் வகை</label><input id="xDisease" required></div>
+<div class="field"><label>மருந்து பெயர்</label><input id="xMedicine"></div>
+<div class="field"><label>அளவு</label><input id="xDose"></div>
+<div class="field"><label>ஊசி போட்ட உடல் பகுதி</label><input id="xBody"></div>
+<div class="field"><label>ஊசி போட்டவர் பெயர்</label><input id="xPerson"></div>
+<div class="field"><label>ஊசி போட்ட நேரம்</label><input id="xTime" type="time"></div>
+<div class="field"><label>அடர் தீவனம் kg</label><input id="xCon" type="number" step="0.01"></div>
+<div class="field"><label>உலர் தீவனம் kg</label><input id="xDry" type="number" step="0.01"></div>
+<div class="field"><label>இன்றைய நிலை</label><select id="xStatus"><option>சிகிச்சையில்</option><option>குணமடைந்தது</option><option>தொடர்கிறது</option></select></div>
+</div><button>நோய் பதிவு சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>ஆடு</th><th>பேட்ச்</th><th>நோய்</th><th>நிலை</th><th>தேதி</th></tr></thead><tbody id="sickTable"></tbody></table></div></div>
+</section>
+
+<section id="weight" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>⚖️ எடை பதிவு</h2>
+<form id="weightForm"><div class="grid">
+<div class="field"><label>ஆடு எண்</label><select id="wSheep"></select></div>
+<div class="field"><label>பேட்ச்</label><input id="wBatch" readonly></div>
+<div class="field"><label>எடை (kg)</label><input id="wWeight" type="number" step="0.1" required></div>
+<div class="field"><label>தேதி</label><input id="wDate" type="date" class="today"></div>
+<div class="field full"><label>குறிப்புகள்</label><textarea id="wNotes"></textarea></div>
+</div><button>எடை சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>ஆடு</th><th>பேட்ச்</th><th>எடை</th><th>தேதி</th></tr></thead><tbody id="weightTable"></tbody></table></div></div>
+</section>
+
+<section id="vacc" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>💉 தடுப்பூசி பதிவு</h2>
+<p class="small">ஒரே தடுப்பூசி பதிவை ஒரு பேட்சிற்கு பயன்படுத்தலாம்.</p>
+<form id="vaccForm"><div class="grid">
+<div class="field"><label>பேட்ச் நம்பர்</label><select id="vBatch"></select></div>
+<div class="field"><label>தடுப்பூசி பெயர்</label><input id="vName" required></div>
+<div class="field"><label>தேதி</label><input id="vDate" type="date" class="today"></div>
+<div class="field"><label>மருந்து பெயர்</label><input id="vMedicine"></div>
+<div class="field"><label>அளவு</label><input id="vDose"></div>
+<div class="field"><label>மருந்து விலை (₹)</label><input id="vDrugPrice" type="number" step="0.01"></div>
+<div class="field"><label>டாக்டர் செலவு (₹)</label><input id="vDoctor" type="number" step="0.01"></div>
+</div><button>தடுப்பூசி சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>பேட்ச்</th><th>தடுப்பூசி</th><th>தேதி</th><th>மொத்த செலவு</th></tr></thead><tbody id="vaccTable"></tbody></table></div></div>
+</section>
+
+<section id="stock" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>🌾 தீவனம் வாங்கிய பதிவு</h2>
+<form id="stockForm"><div class="grid">
+<div class="field"><label>தீவனம் பெயர்</label><input id="stName" required></div>
+<div class="field"><label>வாங்கிய தேதி</label><input id="stDate" type="date" class="today"></div>
+<div class="field"><label>விலை (₹)</label><input id="stPrice" type="number" step="0.01"></div>
+<div class="field"><label>வண்டி வாடகை (₹)</label><input id="stTransport" type="number" step="0.01"></div>
+<div class="field"><label>இறக்கு கூலி (₹)</label><input id="stLoad" type="number" step="0.01"></div>
+<div class="field"><label>அளவு (kg)</label><input id="stQty" type="number" step="0.01"></div>
+<div class="field full"><label>சராசரி தீவன விலை (₹/kg) — Auto</label><input id="stAvg" readonly></div>
+</div><button>இருப்பு பதிவு சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>தீவனம்</th><th>kg</th><th>மொத்த செலவு</th><th>₹/kg</th></tr></thead><tbody id="stockTable"></tbody></table></div></div>
+</section>
+
+<section id="sales" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>💰 விற்பனை</h2>
+<form id="salesForm"><div class="grid">
+<div class="field"><label>பேட்ச் நம்பர்</label><select id="saleBatch"></select></div>
+<div class="field"><label>தேதி</label><input id="saleDate" type="date" class="today"></div>
+<div class="field"><label>ஆடு எண் (ஒரு ஆடு மட்டும் விற்பனை என்றால்)</label><select id="saleSheep"></select></div>
+<div class="field"><label>வாங்குபவர் பெயர்</label><input id="buyer"></div>
+<div class="field"><label>சராசரி எடை (kg)</label><input id="saleWeight" type="number" step="0.1"></div>
+<div class="field"><label>தொலைபேசி எண்</label><input id="phone"></div>
+<div class="field"><label>ஒரு kg விலை (₹)</label><input id="kgPrice" type="number" step="0.01"></div>
+<div class="field"><label>மொத்த தொகை (₹) — Auto</label><input id="saleTotal" readonly></div>
+</div><button>விற்பனை செய்யப்பட்டது</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>பேட்ச்</th><th>வாங்குபவர்</th><th>எடை</th><th>₹/kg</th><th>மொத்தம்</th></tr></thead><tbody id="salesTable"></tbody></table></div></div>
+</section>
+
+<section id="common" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>🧾 பேட்ச் பொதுச் செலவு</h2>
+<form id="commonForm"><div class="grid">
+<div class="field"><label>பேட்ச் நம்பர்</label><select id="cBatch"></select></div>
+<div class="field"><label>செலவு வகை</label><select id="cType"><option>வண்டி வாடகை</option><option>மற்ற பொதுச் செலவு</option></select></div>
+<div class="field"><label>செலவு தொகை (₹)</label><input id="cAmount" type="number" step="0.01" required></div>
+<div class="field"><label>தேதி</label><input id="cDate" type="date" class="today"></div>
+<div class="field full"><label>குறிப்புகள்</label><textarea id="cNotes"></textarea></div>
+</div><button>பொதுச் செலவு சேமிக்க</button></form></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>பேட்ச்</th><th>செலவு வகை</th><th>தொகை</th><th>தேதி</th></tr></thead><tbody id="commonTable"></tbody></table></div></div>
+</section>
+
+<section id="report" class="page">
+<button class="back" onclick="showPage('home')">← முகப்பு</button>
+<div class="card"><h2>📊 பேட்ச் அறிக்கை</h2>
+<div class="field"><label>பேட்ச் தேர்வு</label><select id="reportBatch"></select></div>
+<div id="reportBox"></div>
+</div>
+</section>
+</div>
+
+<script>
+const KEY='maleSheepManagement_v2';
+const EMPTY_DB={"sheep":[],"feed":[],"sick":[],"weight":[],"vacc":[],"stock":[],"sales":[],"common":[],"meta":{}};
+let db=JSON.parse(localStorage.getItem(KEY)||JSON.stringify(EMPTY_DB));
+db={...EMPTY_DB,...db};
+const $=id=>document.getElementById(id);
+const money=n=>'₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+let apiUrl=localStorage.getItem('maleSheepGoogleApiUrl')||'';
+
+function setStatus(msg,ok=true){
+  const el=$('syncStatus'); if(el){el.textContent=msg;el.style.color=ok?'#166534':'#b91c1c';}
+}
+function localSave(){
+  localStorage.setItem(KEY,JSON.stringify(db));
+  refresh();
+}
+function googlePostSave(){
+  if(!apiUrl){setStatus('Local-ஆக சேமிக்கப்பட்டது. Google URL இன்னும் அமைக்கப்படவில்லை.',false);return;}
+  try{
+    setStatus('Google Drive-க்கு save request அனுப்புகிறது…');
+    let frame=document.getElementById('googleSaveFrame');
+    if(!frame){
+      frame=document.createElement('iframe'); frame.name='googleSaveFrame'; frame.id='googleSaveFrame';
+      frame.style.display='none'; document.body.appendChild(frame);
+    }
+    const form=document.createElement('form');
+    form.method='POST'; form.action=apiUrl; form.target='googleSaveFrame'; form.style.display='none';
+    const a=document.createElement('input'); a.name='action'; a.value='replace'; form.appendChild(a);
+    const b=document.createElement('input'); b.name='payload'; b.value=JSON.stringify(db); form.appendChild(b);
+    document.body.appendChild(form); form.submit(); form.remove();
+    setTimeout(()=>setStatus('✓ Google Sheets-க்கு data அனுப்பப்பட்டது'),800);
+  }catch(err){setStatus('Google save error: '+err.message,false);}
+}
+function save(){
+  localSave();
+  googlePostSave();
+}
+function pullFromGoogle(){
+  if(!apiUrl){setStatus('முதலில் Google Apps Script URL கொடுக்கவும்.',false);return;}
+  setStatus('Google-லிருந்து data பெறுகிறது…');
+  const cb='googleCb_'+Date.now();
+  window[cb]=function(out){
+    try{
+      if(!out.ok) throw new Error(out.error||'Read failed');
+      db={...EMPTY_DB,...out.db};
+      localStorage.setItem(KEY,JSON.stringify(db)); refresh();
+      setStatus('✓ Google-லிருந்து data update செய்யப்பட்டது');
+    }catch(err){setStatus('Google data பெற முடியவில்லை: '+err.message,false);}
+    finally{clearTimeout(timer); delete window[cb]; if(tag) tag.remove();}
+  };
+  const tag=document.createElement('script');
+  tag.src=apiUrl+(apiUrl.includes('?')?'&':'?')+'action=get&callback='+encodeURIComponent(cb)+'&t='+Date.now();
+  let timer=setTimeout(()=>{setStatus('Google பதில் வரவில்லை. /exec URL + deployment access + புதிய version சரிபார்க்கவும்.',false);delete window[cb];tag.remove();},10000);
+  tag.onerror=()=>{clearTimeout(timer);setStatus('Google Web App URL வேலை செய்யவில்லை. /exec URL மற்றும் deployment access சரிபார்க்கவும்.',false);delete window[cb];tag.remove();};
+  document.head.appendChild(tag);
+}
+function today(){return new Date().toISOString().slice(0,10)}
+document.querySelectorAll('.today').forEach(x=>x.value=today());
+
+function showPage(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+ $(id).classList.add('active'); refresh();
+ window.scrollTo(0,0);
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function batches(){return [...new Set(db.sheep.map(x=>x.batch))]}
+function options(list,placeholder='தேர்வு செய்யவும்'){
+ return '<option value="">'+placeholder+'</option>'+list.map(x=>`<option>${esc(x)}</option>`).join('');
+}
+function refresh(){
+ $('totalSheep').textContent=db.sheep.length;
+ $('totalSick').textContent=db.sick.filter(x=>x.status!=='குணமடைந்தது').length;
+ const t=today(), f=db.feed.filter(x=>x.date===t);
+ $('todayCon').textContent=f.reduce((a,x)=>a+Number(x.con||0),0).toFixed(2)+' kg';
+ $('todayDry').textContent=f.reduce((a,x)=>a+Number(x.dry||0),0).toFixed(2)+' kg';
+ $('todayFeedCost').textContent=money(f.reduce((a,x)=>a+Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0),0));
+
+ $('sheepTable').innerHTML=db.sheep.map(x=>`<tr><td>${esc(x.no)}</td><td>${esc(x.batch)}</td><td>${esc(x.breed)}</td><td>${x.weight} kg</td><td>${money(x.price)}</td></tr>`).join('');
+ $('fBatch').innerHTML=options(batches()); $('vBatch').innerHTML=options(batches()); $('saleBatch').innerHTML=options(batches()); $('reportBatch').innerHTML=options(batches()); $('cBatch').innerHTML=options(batches());
+ $('xSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('wSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('saleSheep').innerHTML=options(db.sheep.map(x=>x.no),'முழு பேட்ச்');
+ $('feedTable').innerHTML=db.feed.map(x=>`<tr><td>${x.date}</td><td>${esc(x.batch)}</td><td>${x.con}</td><td>${x.dry}</td><td>${money(Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0))}</td></tr>`).join('');
+ $('sickTable').innerHTML=db.sick.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${esc(x.disease)}</td><td>${esc(x.status)}</td><td>${x.date}</td></tr>`).join('');
+ $('weightTable').innerHTML=db.weight.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${x.weight} kg</td><td>${x.date}</td></tr>`).join('');
+ $('vaccTable').innerHTML=db.vacc.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.name)}</td><td>${x.date}</td><td>${money(Number(x.drugPrice)+Number(x.doctor))}</td></tr>`).join('');
+ $('stockTable').innerHTML=db.stock.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.qty}</td><td>${money(Number(x.price)+Number(x.transport)+Number(x.load))}</td><td>${money(x.avg)}</td></tr>`).join('');
+ $('commonTable').innerHTML=(db.common||[]).map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.type)}</td><td>${money(x.amount)}</td><td>${x.date}</td></tr>`).join('');
+ $('salesTable').innerHTML=db.sales.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.buyer)}</td><td>${x.weight}</td><td>${money(x.kgPrice)}</td><td>${money(x.total)}</td></tr>`).join('');
+}
+$('sheepPhoto').onchange=e=>{
+ const file=e.target.files[0]; if(!file)return;
+ const r=new FileReader(); r.onload=()=>{ $('photoPreview').src=r.result;$('photoPreview').style.display='block'; $('photoPreview').dataset.data=r.result};r.readAsDataURL(file);
+};
+$('sheepForm').onsubmit=e=>{e.preventDefault();db.sheep.push({batch:$('sBatch').value,no:$('sNo').value,market:$('sMarket').value,sex:$('sSex').value,breed:$('sBreed').value,weight:Number($('sWeight').value),date:$('sDate').value,price:Number($('sPrice').value),notes:$('sNotes').value,photo:$('photoPreview').dataset.data||''});e.target.reset();$('photoPreview').style.display='none';save();};
+$('fBatch').onchange=()=>{$('fCount').value=db.sheep.filter(x=>x.batch===$('fBatch').value).length};
+$('feedForm').onsubmit=e=>{e.preventDefault();db.feed.push({date:today(),batch:$('fBatch').value,con:Number($('fCon').value),conPrice:Number($('fConPrice').value),dry:Number($('fDry').value),dryPrice:Number($('fDryPrice').value),time:$('fTime').value});e.target.reset();save();};
+$('xSheep').onchange=()=>{const s=db.sheep.find(x=>x.no===$('xSheep').value);$('xBatch').value=s?s.batch:''};
+$('sickForm').onsubmit=e=>{e.preventDefault();db.sick.push({sheep:$('xSheep').value,batch:$('xBatch').value,date:$('xDate').value,disease:$('xDisease').value,medicine:$('xMedicine').value,dose:$('xDose').value,body:$('xBody').value,person:$('xPerson').value,time:$('xTime').value,con:Number($('xCon').value),dry:Number($('xDry').value),status:$('xStatus').value});e.target.reset();save();};
+$('wSheep').onchange=()=>{const s=db.sheep.find(x=>x.no===$('wSheep').value);$('wBatch').value=s?s.batch:''};
+$('weightForm').onsubmit=e=>{e.preventDefault();db.weight.push({sheep:$('wSheep').value,batch:$('wBatch').value,weight:Number($('wWeight').value),date:$('wDate').value,notes:$('wNotes').value});e.target.reset();save();};
+$('vaccForm').onsubmit=e=>{e.preventDefault();db.vacc.push({batch:$('vBatch').value,name:$('vName').value,date:$('vDate').value,medicine:$('vMedicine').value,dose:$('vDose').value,drugPrice:Number($('vDrugPrice').value),doctor:Number($('vDoctor').value)});e.target.reset();save();};
+function stockCalc(){const q=Number($('stQty').value), total=Number($('stPrice').value)+Number($('stTransport').value)+Number($('stLoad').value);$('stAvg').value=q?money(total/q):''}
+['stQty','stPrice','stTransport','stLoad'].forEach(id=>$(id).oninput=stockCalc);
+$('stockForm').onsubmit=e=>{e.preventDefault();const q=Number($('stQty').value),total=Number($('stPrice').value)+Number($('stTransport').value)+Number($('stLoad').value);db.stock.push({name:$('stName').value,date:$('stDate').value,price:Number($('stPrice').value),transport:Number($('stTransport').value),load:Number($('stLoad').value),qty:q,avg:q?total/q:0});e.target.reset();save();};
+$('commonForm').onsubmit=e=>{e.preventDefault();db.common.push({batch:$('cBatch').value,type:$('cType').value,amount:Number($('cAmount').value),date:$('cDate').value,notes:$('cNotes').value});e.target.reset();save();};
+function saleCalc(){$('saleTotal').value=money(Number($('saleWeight').value)*Number($('kgPrice').value))}
+$('saleWeight').oninput=saleCalc;$('kgPrice').oninput=saleCalc;
+$('salesForm').onsubmit=e=>{e.preventDefault();db.sales.push({batch:$('saleBatch').value,date:$('saleDate').value,buyer:$('buyer').value,weight:Number($('saleWeight').value),phone:$('phone').value,kgPrice:Number($('kgPrice').value),total:Number($('saleWeight').value)*Number($('kgPrice').value)});e.target.reset();save();};
+$('reportBatch').onchange=()=>{
+ const b=$('reportBatch').value; if(!b){$('reportBox').innerHTML='';return}
+ const sh=db.sheep.filter(x=>x.batch===b), feed=db.feed.filter(x=>x.batch===b), sales=db.sales.filter(x=>x.batch===b), sick=db.sick.filter(x=>x.batch===b);
+ const purchase=sh.reduce((a,x)=>a+Number(x.price||0)+Number(x.transport||0),0);
+ const con=feed.reduce((a,x)=>a+Number(x.con||0),0), dry=feed.reduce((a,x)=>a+Number(x.dry||0),0);
+ const feedCost=feed.reduce((a,x)=>a+Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0),0);
+ const vacc=db.vacc.filter(x=>x.batch===b).reduce((a,x)=>a+Number(x.drugPrice||0)+Number(x.doctor||0),0);
+ const common=(db.common||[]).filter(x=>x.batch===b).reduce((a,x)=>a+Number(x.amount||0),0);
+ const sale=sales.reduce((a,x)=>a+Number(x.total||0),0);
+ const avg=sh.length?sh.reduce((a,x)=>a+Number(x.weight||0),0)/sh.length:0;
+ const dead=sick.filter(x=>x.status==='இறந்தது').length;
+ const cured=sick.filter(x=>x.status==='குணமடைந்தது').length;
+ const profit=sale-(purchase+feedCost+vacc+common);
+ $('reportBox').innerHTML=`<div class="grid">
+ <div class="card"><label>வாங்கிய விலை</label><div class="report-value">${money(purchase)}</div></div>
+ <div class="card"><label>அடர் தீவனம் Consumption</label><div class="report-value">${con.toFixed(2)} kg</div></div>
+ <div class="card"><label>உலர் தீவனம் Consumption</label><div class="report-value">${dry.toFixed(2)} kg</div></div>
+ <div class="card"><label>சராசரி எடை</label><div class="report-value">${avg.toFixed(2)} kg</div></div>
+ <div class="card"><label>விற்பனை விலை</label><div class="report-value">${money(sale)}</div></div>
+ <div class="card"><label>லாபம் / நஷ்டம்</label><div class="report-value">${money(profit)}</div></div>
+ <div class="card"><label>பொதுச் செலவு</label><div class="report-value">${money(common)}</div></div><div class="card"><label>இறந்தவை</label><div class="report-value">${dead}</div></div>
+ <div class="card"><label>நோய் பதிவுகள்</label><div class="report-value">${sick.length}</div></div>
+ <div class="card full"><label>நோய்களின் காரணங்கள் / சரி செய்த விதம்</label><div>${sick.map(x=>`<p><b>${esc(x.sheep)}</b> — ${esc(x.disease)} — ${esc(x.status)} — ${esc(x.medicine||'மருந்து பதிவு இல்லை')}</p>`).join('')||'பதிவு இல்லை'}</div></div>
+ </div>`;
+};
+$('apiUrl').value=apiUrl;
+$('connectBtn').onclick=async()=>{
+  apiUrl=$('apiUrl').value.trim();
+  if(!apiUrl){setStatus('Google Apps Script URL கொடுக்கவும்.',false);return;}
+  localStorage.setItem('maleSheepGoogleApiUrl',apiUrl);
+  await pullFromGoogle();
+};
+$('pullBtn').onclick=pullFromGoogle;
+
+refresh();
+if(apiUrl) pullFromGoogle();
+</script>
+</body>
+</html>
