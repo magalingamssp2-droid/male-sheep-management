@@ -38,6 +38,8 @@ th{background:#dcfce7}
 .nav button{white-space:nowrap}
 @media(max-width:520px){.grid{grid-template-columns:1fr}.dashboard{grid-template-columns:1fr 1fr}.card{padding:12px}header h1{font-size:18px}}
 </style>
+<meta name="app-version" content="2026-08-29-001">
+<script>const APP_VERSION='2026-08-29-001';</script>
 </head>
 <body>
 <header><h1>🐑 ஆண் ஆடு மேலாண்மை</h1></header>
@@ -469,5 +471,89 @@ $('pullBtn').onclick=pullFromGoogle;
 refresh();
 if(apiUrl) pullFromGoogle();
 </script>
+
+<script>
+/* ===== App Version Update Checker =====
+   GitHub Pages publishes a new index.html whenever you commit changes.
+   This checker asks the server for a fresh copy of index.html and compares
+   a small version marker. When a newer version is detected, a visible
+   Update Now button appears.
+*/
+const APP_VERSION_URL = './index.html?v=' + Date.now();
+const APP_VERSION_KEY = 'maleSheepAppVersion';
+let latestAppVersion = null;
+
+async function checkAppVersion(){
+  try{
+    const r = await fetch(APP_VERSION_URL, {
+      cache:'no-store',
+      headers:{'Cache-Control':'no-cache'}
+    });
+    if(!r.ok) return;
+
+    const html = await r.text();
+    const m = html.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+    if(!m) return;
+
+    latestAppVersion = m[1];
+    const current = localStorage.getItem(APP_VERSION_KEY);
+
+    if(current && current !== latestAppVersion){
+      showUpdateBanner();
+    }else if(!current){
+      localStorage.setItem(APP_VERSION_KEY, latestAppVersion);
+    }
+  }catch(e){
+    // Offline: silently ignore.
+  }
+}
+
+function showUpdateBanner(){
+  if(document.getElementById('appUpdateBanner')) return;
+
+  const banner=document.createElement('div');
+  banner.id='appUpdateBanner';
+  banner.innerHTML=`
+    <div style="
+      position:fixed;left:12px;right:12px;bottom:14px;z-index:99999;
+      background:#166534;color:white;padding:14px;border-radius:14px;
+      box-shadow:0 5px 25px #0005;font-family:Arial,'Noto Sans Tamil',sans-serif;
+    ">
+      <div style="font-weight:bold;font-size:16px">🔄 புதிய App Version கிடைக்கிறது</div>
+      <div style="font-size:13px;margin:5px 0 10px">புதிய மாற்றங்களைப் பெற Update Now அழுத்துங்கள்.</div>
+      <button id="updateNowBtn" style="
+        background:white;color:#166534;border:0;border-radius:9px;
+        padding:9px 14px;font-weight:bold;cursor:pointer;
+      ">Update Now</button>
+      <button id="updateLaterBtn" style="
+        background:transparent;color:white;border:1px solid #ffffff99;
+        border-radius:9px;padding:8px 12px;margin-left:6px;cursor:pointer;
+      ">Later</button>
+    </div>`;
+  document.body.appendChild(banner);
+
+  document.getElementById('updateNowBtn').onclick=()=>{
+    localStorage.setItem(APP_VERSION_KEY, latestAppVersion || Date.now());
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistration().then(reg=>{
+        if(reg) reg.update().catch(()=>{});
+        setTimeout(()=>location.reload(true),500);
+      });
+    }else{
+      location.reload(true);
+    }
+  };
+  document.getElementById('updateLaterBtn').onclick=()=>{
+    banner.remove();
+  };
+}
+
+/* Check after the page loads, then periodically while the app is open. */
+window.addEventListener('load',()=>{
+  setTimeout(checkAppVersion,2500);
+  setInterval(checkAppVersion,5*60*1000);
+});
+</script>
+
 </body>
 </html>
