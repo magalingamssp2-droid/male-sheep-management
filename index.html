@@ -244,19 +244,40 @@ function localSave(){
 function googlePostSave(){
   if(!apiUrl){setStatus('Local-ஆக சேமிக்கப்பட்டது. Google URL இன்னும் அமைக்கப்படவில்லை.',false);return;}
   try{
-    setStatus('Google Drive-க்கு save request அனுப்புகிறது…');
+    setStatus('Google Sheets-க்கு save request அனுப்புகிறது…');
     let frame=document.getElementById('googleSaveFrame');
     if(!frame){
-      frame=document.createElement('iframe'); frame.name='googleSaveFrame'; frame.id='googleSaveFrame';
-      frame.style.display='none'; document.body.appendChild(frame);
+      frame=document.createElement('iframe');
+      frame.name='googleSaveFrame';
+      frame.id='googleSaveFrame';
+      frame.style.display='none';
+      document.body.appendChild(frame);
     }
     const form=document.createElement('form');
-    form.method='POST'; form.action=apiUrl; form.target='googleSaveFrame'; form.style.display='none';
-    const a=document.createElement('input'); a.name='action'; a.value='replace'; form.appendChild(a);
-    const b=document.createElement('input'); b.name='payload'; b.value=JSON.stringify(db); form.appendChild(b);
-    document.body.appendChild(form); form.submit(); form.remove();
-    setTimeout(()=>setStatus('✓ Google Sheets-க்கு data அனுப்பப்பட்டது'),800);
-  }catch(err){setStatus('Google save error: '+err.message,false);}
+    form.method='POST';
+    form.action=apiUrl;
+    form.target='googleSaveFrame';
+    form.style.display='none';
+
+    const a=document.createElement('input');
+    a.type='hidden';
+    a.name='action';
+    a.value='merge';
+    form.appendChild(a);
+
+    const b=document.createElement('input');
+    b.type='hidden';
+    b.name='payload';
+    b.value=JSON.stringify(db);
+    form.appendChild(b);
+
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setTimeout(()=>setStatus('✓ Google Sheets-ல் பாதுகாப்பாக சேமிக்கப்பட்டது'),1200);
+  }catch(err){
+    setStatus('Google save error: '+err.message,false);
+  }
 }
 function save(){
   localSave();
@@ -265,20 +286,44 @@ function save(){
 function pullFromGoogle(){
   if(!apiUrl){setStatus('முதலில் Google Apps Script URL கொடுக்கவும்.',false);return;}
   setStatus('Google-லிருந்து data பெறுகிறது…');
+
   const cb='googleCb_'+Date.now();
+  let timer;
+  let tag;
+
   window[cb]=function(out){
     try{
-      if(!out.ok) throw new Error(out.error||'Read failed');
+      if(!out || !out.ok) throw new Error((out && out.error)||'Read failed');
       db={...EMPTY_DB,...out.db};
-      localStorage.setItem(KEY,JSON.stringify(db)); refresh();
+      localStorage.setItem(KEY,JSON.stringify(db));
+      refresh();
       setStatus('✓ Google-லிருந்து data update செய்யப்பட்டது');
-    }catch(err){setStatus('Google data பெற முடியவில்லை: '+err.message,false);}
-    finally{clearTimeout(timer); delete window[cb]; if(tag) tag.remove();}
+    }catch(err){
+      setStatus('Google data பெற முடியவில்லை: '+err.message,false);
+    }finally{
+      clearTimeout(timer);
+      delete window[cb];
+      if(tag) tag.remove();
+    }
   };
-  const tag=document.createElement('script');
-  tag.src=apiUrl+(apiUrl.includes('?')?'&':'?')+'action=get&callback='+encodeURIComponent(cb)+'&t='+Date.now();
-  let timer=setTimeout(()=>{setStatus('Google பதில் வரவில்லை. /exec URL + deployment access + புதிய version சரிபார்க்கவும்.',false);delete window[cb];tag.remove();},10000);
-  tag.onerror=()=>{clearTimeout(timer);setStatus('Google Web App URL வேலை செய்யவில்லை. /exec URL மற்றும் deployment access சரிபார்க்கவும்.',false);delete window[cb];tag.remove();};
+
+  tag=document.createElement('script');
+  tag.src=apiUrl+(apiUrl.includes('?')?'&':'?')+
+          'action=get&callback='+encodeURIComponent(cb)+'&t='+Date.now();
+
+  timer=setTimeout(()=>{
+    setStatus('Google பதில் வரவில்லை. Apps Script deployment மற்றும் /exec URL சரிபார்க்கவும்.',false);
+    delete window[cb];
+    if(tag) tag.remove();
+  },15000);
+
+  tag.onerror=()=>{
+    clearTimeout(timer);
+    setStatus('Google Web App URL வேலை செய்யவில்லை. /exec URL மற்றும் deployment access சரிபார்க்கவும்.',false);
+    delete window[cb];
+    if(tag) tag.remove();
+  };
+
   document.head.appendChild(tag);
 }
 function today(){return new Date().toISOString().slice(0,10)}
