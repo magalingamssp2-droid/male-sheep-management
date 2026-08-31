@@ -38,8 +38,6 @@ th{background:#dcfce7}
 .nav button{white-space:nowrap}
 @media(max-width:520px){.grid{grid-template-columns:1fr}.dashboard{grid-template-columns:1fr 1fr}.card{padding:12px}header h1{font-size:18px}}
 </style>
-<meta name="app-version" content="2026-08-29-001">
-<script>const APP_VERSION='2026-08-29-001';</script>
 </head>
 <body>
 <header><h1>🐑 ஆண் ஆடு மேலாண்மை</h1></header>
@@ -140,7 +138,7 @@ th{background:#dcfce7}
 <div class="field"><label>ஊசி போட்ட நேரம்</label><input id="xTime" type="time"></div>
 <div class="field"><label>அடர் தீவனம் kg</label><input id="xCon" type="number" step="0.01"></div>
 <div class="field"><label>உலர் தீவனம் kg</label><input id="xDry" type="number" step="0.01"></div>
-<div class="field"><label>இன்றைய நிலை</label><select id="xStatus"><option>சிகிச்சையில்</option><option>குணமடைந்தது</option><option>தொடர்கிறது</option></select></div>
+<div class="field"><label>இன்றைய நிலை</label><select id="xStatus"><option>சிகிச்சையில்</option><option>குணமடைந்தது</option><option>தொடர்கிறது</option><option>இறந்தது</option></select></div>
 </div><button>நோய் பதிவு சேமிக்க</button></form></div>
 <div class="card"><div class="table-wrap"><table><thead><tr><th>ஆடு</th><th>பேட்ச்</th><th>நோய்</th><th>நிலை</th><th>தேதி</th></tr></thead><tbody id="sickTable"></tbody></table></div></div>
 </section>
@@ -202,7 +200,7 @@ th{background:#dcfce7}
 <div class="field"><label>ஒரு kg விலை (₹)</label><input id="kgPrice" type="number" step="0.01"></div>
 <div class="field"><label>மொத்த தொகை (₹) — Auto</label><input id="saleTotal" readonly></div>
 </div><button>விற்பனை செய்யப்பட்டது</button></form></div>
-<div class="card"><div class="table-wrap"><table><thead><tr><th>பேட்ச்</th><th>வாங்குபவர்</th><th>எடை</th><th>₹/kg</th><th>மொத்தம்</th></tr></thead><tbody id="salesTable"></tbody></table></div></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>பேட்ச்</th><th>ஆடு</th><th>வாங்குபவர்</th><th>எடை</th><th>₹/kg</th><th>மொத்தம்</th></tr></thead><tbody id="salesTable"></tbody></table></div></div>
 </section>
 
 <section id="common" class="page">
@@ -240,46 +238,37 @@ function setStatus(msg,ok=true){
   const el=$('syncStatus'); if(el){el.textContent=msg;el.style.color=ok?'#166534':'#b91c1c';}
 }
 function localSave(){
-  localStorage.setItem(KEY,JSON.stringify(db));
+  try{
+    localStorage.setItem(KEY,JSON.stringify(db));
+  }catch(err){
+    // Prevent QuotaExceededError from crashing the app.
+    if(err && (err.name==='QuotaExceededError' || /quota/i.test(err.message||''))){
+      const copy=JSON.parse(JSON.stringify(db));
+      // Keep the newest records and remove photos from oldest records first.
+      for(let i=0;i<copy.sheep.length;i++){
+        if(copy.sheep[i].photo){ copy.sheep[i].photo=''; try{localStorage.setItem(KEY,JSON.stringify(copy)); db=copy; break;}catch(e){} }
+      }
+      alert('LocalStorage இடம் நிறைந்ததால் பழைய ஆட்டுப் புகைப்படங்கள் மட்டும் நீக்கப்பட்டு data பாதுகாக்கப்பட்டது.');
+    }else{ throw err; }
+  }
   refresh();
 }
 function googlePostSave(){
   if(!apiUrl){setStatus('Local-ஆக சேமிக்கப்பட்டது. Google URL இன்னும் அமைக்கப்படவில்லை.',false);return;}
   try{
-    setStatus('Google Sheets-க்கு save request அனுப்புகிறது…');
+    setStatus('Google Drive-க்கு save request அனுப்புகிறது…');
     let frame=document.getElementById('googleSaveFrame');
     if(!frame){
-      frame=document.createElement('iframe');
-      frame.name='googleSaveFrame';
-      frame.id='googleSaveFrame';
-      frame.style.display='none';
-      document.body.appendChild(frame);
+      frame=document.createElement('iframe'); frame.name='googleSaveFrame'; frame.id='googleSaveFrame';
+      frame.style.display='none'; document.body.appendChild(frame);
     }
     const form=document.createElement('form');
-    form.method='POST';
-    form.action=apiUrl;
-    form.target='googleSaveFrame';
-    form.style.display='none';
-
-    const a=document.createElement('input');
-    a.type='hidden';
-    a.name='action';
-    a.value='merge';
-    form.appendChild(a);
-
-    const b=document.createElement('input');
-    b.type='hidden';
-    b.name='payload';
-    b.value=JSON.stringify(db);
-    form.appendChild(b);
-
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
-    setTimeout(()=>setStatus('✓ Google Sheets-ல் பாதுகாப்பாக சேமிக்கப்பட்டது'),1200);
-  }catch(err){
-    setStatus('Google save error: '+err.message,false);
-  }
+    form.method='POST'; form.action=apiUrl; form.target='googleSaveFrame'; form.style.display='none';
+    const a=document.createElement('input'); a.name='action'; a.value='replace'; form.appendChild(a);
+    const b=document.createElement('input'); b.name='payload'; b.value=JSON.stringify(db); form.appendChild(b);
+    document.body.appendChild(form); form.submit(); form.remove();
+    setTimeout(()=>setStatus('✓ Google Sheets-க்கு data அனுப்பப்பட்டது'),800);
+  }catch(err){setStatus('Google save error: '+err.message,false);}
 }
 function save(){
   localSave();
@@ -288,50 +277,23 @@ function save(){
 function pullFromGoogle(){
   if(!apiUrl){setStatus('முதலில் Google Apps Script URL கொடுக்கவும்.',false);return;}
   setStatus('Google-லிருந்து data பெறுகிறது…');
-
   const cb='googleCb_'+Date.now();
-  let timer;
-  let tag;
-
   window[cb]=function(out){
     try{
-      if(!out || !out.ok) throw new Error((out && out.error)||'Read failed');
+      if(!out.ok) throw new Error(out.error||'Read failed');
       db={...EMPTY_DB,...out.db};
-      localStorage.setItem(KEY,JSON.stringify(db));
-      refresh();
+      localStorage.setItem(KEY,JSON.stringify(db)); refresh();
       setStatus('✓ Google-லிருந்து data update செய்யப்பட்டது');
-    }catch(err){
-      setStatus('Google data பெற முடியவில்லை: '+err.message,false);
-    }finally{
-      clearTimeout(timer);
-      delete window[cb];
-      if(tag) tag.remove();
-    }
+    }catch(err){setStatus('Google data பெற முடியவில்லை: '+err.message,false);}
+    finally{delete window[cb]; if(tag) tag.remove();}
   };
-
-  tag=document.createElement('script');
-  tag.src=apiUrl+(apiUrl.includes('?')?'&':'?')+
-          'action=get&callback='+encodeURIComponent(cb)+'&t='+Date.now();
-
-  timer=setTimeout(()=>{
-    setStatus('Google பதில் வரவில்லை. Apps Script deployment மற்றும் /exec URL சரிபார்க்கவும்.',false);
-    delete window[cb];
-    if(tag) tag.remove();
-  },15000);
-
-  tag.onerror=()=>{
-    clearTimeout(timer);
-    setStatus('Google Web App URL வேலை செய்யவில்லை. /exec URL மற்றும் deployment access சரிபார்க்கவும்.',false);
-    delete window[cb];
-    if(tag) tag.remove();
-  };
-
+  const tag=document.createElement('script');
+  tag.src=apiUrl+(apiUrl.includes('?')?'&':'?')+'action=get&callback='+encodeURIComponent(cb)+'&t='+Date.now();
+  tag.onerror=()=>{setStatus('Google Web App URL வேலை செய்யவில்லை. /exec URL மற்றும் deployment access சரிபார்க்கவும்.',false);delete window[cb];tag.remove();};
   document.head.appendChild(tag);
 }
 function today(){return new Date().toISOString().slice(0,10)}
 document.querySelectorAll('.today').forEach(x=>x.value=today());
-
-setupAddNewDropdowns();
 
 function showPage(id){
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -340,61 +302,8 @@ function showPage(id){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function batches(){return [...new Set(db.sheep.map(x=>x.batch))]}
-// Dropdowns can have user-added options.
-// Custom options are saved on this device so they remain after refresh/app update.
-const CUSTOM_DROPDOWN_KEY='maleSheepCustomDropdownOptions_v1';
-let customDropdownOptions=JSON.parse(localStorage.getItem(CUSTOM_DROPDOWN_KEY)||'{}');
-
-function saveCustomDropdownOptions(){
- localStorage.setItem(CUSTOM_DROPDOWN_KEY,JSON.stringify(customDropdownOptions));
-}
-
-function options(list,placeholder='தேர்வு செய்யவும்',selectId=''){
- const base=list.map(x=>`<option>${esc(x)}</option>`).join('');
- const custom=(customDropdownOptions[selectId]||[])
-   .filter(x=>!list.some(y=>String(y)===String(x)))
-   .map(x=>`<option>${esc(x)}</option>`).join('');
- return '<option value="">'+placeholder+'</option>'+base+custom+'<option value="__ADD_NEW__">＋ புதியதைச் சேர்க்கவும்</option>';
-}
-
-function setupAddNewDropdowns(){
- document.querySelectorAll('select').forEach(sel=>{
-   // Avoid adding the listener twice.
-   if(sel.dataset.addNewReady==='1') return;
-   sel.dataset.addNewReady='1';
-
-   sel.addEventListener('change',function(){
-     if(this.value!=='__ADD_NEW__') return;
-
-     const id=this.id;
-     const label=(this.closest('.field')||this.parentElement)?.querySelector('label')?.textContent || 'விருப்பம்';
-     const value=prompt(label+' - புதியதை உள்ளிடவும்:');
-
-     if(value && value.trim()){
-       const v=value.trim();
-       customDropdownOptions[id]=customDropdownOptions[id]||[];
-
-       if(!customDropdownOptions[id].some(x=>String(x)===v)){
-         customDropdownOptions[id].push(v);
-         saveCustomDropdownOptions();
-       }
-
-       // Put the new value immediately before the "add new" item.
-       const addItem=this.querySelector('option[value="__ADD_NEW__"]');
-       const opt=document.createElement('option');
-       opt.textContent=v;
-       opt.value=v;
-       this.insertBefore(opt,addItem);
-       this.value=v;
-
-       // For sheep/batch selections, allow the newly added value to be used
-       // immediately. It will also remain available after refresh.
-       this.dispatchEvent(new Event('input',{bubbles:true}));
-     }else{
-       this.value='';
-     }
-   });
- });
+function options(list,placeholder='தேர்வு செய்யவும்'){
+ return '<option value="">'+placeholder+'</option>'+list.map(x=>`<option>${esc(x)}</option>`).join('');
 }
 function refresh(){
  $('totalSheep').textContent=db.sheep.length;
@@ -405,21 +314,59 @@ function refresh(){
  $('todayFeedCost').textContent=money(f.reduce((a,x)=>a+Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0),0));
 
  $('sheepTable').innerHTML=db.sheep.map(x=>`<tr><td>${esc(x.no)}</td><td>${esc(x.batch)}</td><td>${esc(x.breed)}</td><td>${x.weight} kg</td><td>${money(x.price)}</td></tr>`).join('');
- $('fBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','fBatch'); $('vBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','vBatch'); $('saleBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','saleBatch'); $('reportBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','reportBatch'); $('cBatch').innerHTML=options(batches(),'தேர்வு செய்யவும்','cBatch');
- $('xSheep').innerHTML=options(db.sheep.map(x=>x.no),'தேர்வு செய்யவும்','xSheep'); $('wSheep').innerHTML=options(db.sheep.map(x=>x.no),'தேர்வு செய்யவும்','wSheep'); $('saleSheep').innerHTML=options(db.sheep.map(x=>x.no),'முழு பேட்ச்','saleSheep');
+ const currentFBatch=$('fBatch').value;
+ $('fBatch').innerHTML=options(batches()); $('vBatch').innerHTML=options(batches()); $('saleBatch').innerHTML=options(batches()); $('reportBatch').innerHTML=options(batches()); $('cBatch').innerHTML=options(batches());
+ if(currentFBatch && batches().includes(currentFBatch)) $('fBatch').value=currentFBatch;
+ else if(batches().length===1) $('fBatch').value=batches()[0];
+ $('fCount').value=$('fBatch').value ? db.sheep.filter(x=>x.batch===$('fBatch').value).length : '';
+ $('xSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('wSheep').innerHTML=options(db.sheep.map(x=>x.no)); $('saleSheep').innerHTML=options(db.sheep.map(x=>x.no),'முழு பேட்ச்');
  $('feedTable').innerHTML=db.feed.map(x=>`<tr><td>${x.date}</td><td>${esc(x.batch)}</td><td>${x.con}</td><td>${x.dry}</td><td>${money(Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0))}</td></tr>`).join('');
  $('sickTable').innerHTML=db.sick.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${esc(x.disease)}</td><td>${esc(x.status)}</td><td>${x.date}</td></tr>`).join('');
  $('weightTable').innerHTML=db.weight.map(x=>`<tr><td>${esc(x.sheep)}</td><td>${esc(x.batch)}</td><td>${x.weight} kg</td><td>${x.date}</td></tr>`).join('');
  $('vaccTable').innerHTML=db.vacc.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.name)}</td><td>${x.date}</td><td>${money(Number(x.drugPrice)+Number(x.doctor))}</td></tr>`).join('');
  $('stockTable').innerHTML=db.stock.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.qty}</td><td>${money(Number(x.price)+Number(x.transport)+Number(x.load))}</td><td>${money(x.avg)}</td></tr>`).join('');
  $('commonTable').innerHTML=(db.common||[]).map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.type)}</td><td>${money(x.amount)}</td><td>${x.date}</td></tr>`).join('');
- $('salesTable').innerHTML=db.sales.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.buyer)}</td><td>${x.weight}</td><td>${money(x.kgPrice)}</td><td>${money(x.total)}</td></tr>`).join('');
+ $('salesTable').innerHTML=db.sales.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.sheep||'முழு பேட்ச்')}</td><td>${esc(x.buyer)}</td><td>${x.weight}</td><td>${money(x.kgPrice)}</td><td>${money(x.total)}</td></tr>`).join('');
 }
-$('sheepPhoto').onchange=e=>{
+async function compressImage(file,maxW=480,maxH=480,maxBytes=120000){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('Photo read failed'));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Photo decode failed'));
+      img.onload=()=>{
+        const scale=Math.min(1,maxW/img.width,maxH/img.height);
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(img.width*scale));
+        canvas.height=Math.max(1,Math.round(img.height*scale));
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        let quality=.60, data='';
+        do{ data=canvas.toDataURL('image/jpeg',quality); quality-=.08; }while(data.length>maxBytes*1.37 && quality>=.28);
+        resolve(data);
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+$('sheepPhoto').onchange=async e=>{
  const file=e.target.files[0]; if(!file)return;
- const r=new FileReader(); r.onload=()=>{ $('photoPreview').src=r.result;$('photoPreview').style.display='block'; $('photoPreview').dataset.data=r.result};r.readAsDataURL(file);
+ try{
+   const data=await compressImage(file);
+   $('photoPreview').src=data;$('photoPreview').style.display='block';$('photoPreview').dataset.data=data;
+ }catch(err){ alert('புகைப்படத்தை process செய்ய முடியவில்லை: '+err.message); }
 };
-$('sheepForm').onsubmit=e=>{e.preventDefault();db.sheep.push({batch:$('sBatch').value,no:$('sNo').value,market:$('sMarket').value,sex:$('sSex').value,breed:$('sBreed').value,weight:Number($('sWeight').value),date:$('sDate').value,price:Number($('sPrice').value),notes:$('sNotes').value,photo:$('photoPreview').dataset.data||''});e.target.reset();$('photoPreview').style.display='none';save();};
+$('sheepForm').onsubmit=async e=>{
+ e.preventDefault();
+ const btn=e.target.querySelector('button[type="submit"]')||e.target.querySelector('button');
+ if(btn) btn.disabled=true;
+ try{
+   db.sheep.push({batch:$('sBatch').value,no:$('sNo').value,market:$('sMarket').value,sex:$('sSex').value,breed:$('sBreed').value,weight:Number($('sWeight').value),date:$('sDate').value,price:Number($('sPrice').value),notes:$('sNotes').value,photo:$('photoPreview').dataset.data||''});
+   e.target.reset();$('photoPreview').style.display='none';$('photoPreview').removeAttribute('src');delete $('photoPreview').dataset.data;save();
+ }finally{if(btn) btn.disabled=false;}
+};
 $('fBatch').onchange=()=>{$('fCount').value=db.sheep.filter(x=>x.batch===$('fBatch').value).length};
 $('feedForm').onsubmit=e=>{e.preventDefault();db.feed.push({date:today(),batch:$('fBatch').value,con:Number($('fCon').value),conPrice:Number($('fConPrice').value),dry:Number($('fDry').value),dryPrice:Number($('fDryPrice').value),time:$('fTime').value});e.target.reset();save();};
 $('xSheep').onchange=()=>{const s=db.sheep.find(x=>x.no===$('xSheep').value);$('xBatch').value=s?s.batch:''};
@@ -433,11 +380,11 @@ $('stockForm').onsubmit=e=>{e.preventDefault();const q=Number($('stQty').value),
 $('commonForm').onsubmit=e=>{e.preventDefault();db.common.push({batch:$('cBatch').value,type:$('cType').value,amount:Number($('cAmount').value),date:$('cDate').value,notes:$('cNotes').value});e.target.reset();save();};
 function saleCalc(){$('saleTotal').value=money(Number($('saleWeight').value)*Number($('kgPrice').value))}
 $('saleWeight').oninput=saleCalc;$('kgPrice').oninput=saleCalc;
-$('salesForm').onsubmit=e=>{e.preventDefault();db.sales.push({batch:$('saleBatch').value,date:$('saleDate').value,buyer:$('buyer').value,weight:Number($('saleWeight').value),phone:$('phone').value,kgPrice:Number($('kgPrice').value),total:Number($('saleWeight').value)*Number($('kgPrice').value)});e.target.reset();save();};
+$('salesForm').onsubmit=e=>{e.preventDefault();db.sales.push({batch:$('saleBatch').value,sheep:$('saleSheep').value,date:$('saleDate').value,buyer:$('buyer').value,weight:Number($('saleWeight').value),phone:$('phone').value,kgPrice:Number($('kgPrice').value),total:Number($('saleWeight').value)*Number($('kgPrice').value)});e.target.reset();save();};
 $('reportBatch').onchange=()=>{
  const b=$('reportBatch').value; if(!b){$('reportBox').innerHTML='';return}
  const sh=db.sheep.filter(x=>x.batch===b), feed=db.feed.filter(x=>x.batch===b), sales=db.sales.filter(x=>x.batch===b), sick=db.sick.filter(x=>x.batch===b);
- const purchase=sh.reduce((a,x)=>a+Number(x.price||0)+Number(x.transport||0),0);
+ const purchase=sh.reduce((a,x)=>a+Number(x.price||0),0);
  const con=feed.reduce((a,x)=>a+Number(x.con||0),0), dry=feed.reduce((a,x)=>a+Number(x.dry||0),0);
  const feedCost=feed.reduce((a,x)=>a+Number(x.con||0)*Number(x.conPrice||0)+Number(x.dry||0)*Number(x.dryPrice||0),0);
  const vacc=db.vacc.filter(x=>x.batch===b).reduce((a,x)=>a+Number(x.drugPrice||0)+Number(x.doctor||0),0);
@@ -471,89 +418,5 @@ $('pullBtn').onclick=pullFromGoogle;
 refresh();
 if(apiUrl) pullFromGoogle();
 </script>
-
-<script>
-/* ===== App Version Update Checker =====
-   GitHub Pages publishes a new index.html whenever you commit changes.
-   This checker asks the server for a fresh copy of index.html and compares
-   a small version marker. When a newer version is detected, a visible
-   Update Now button appears.
-*/
-const APP_VERSION_URL = './index.html?v=' + Date.now();
-const APP_VERSION_KEY = 'maleSheepAppVersion';
-let latestAppVersion = null;
-
-async function checkAppVersion(){
-  try{
-    const r = await fetch(APP_VERSION_URL, {
-      cache:'no-store',
-      headers:{'Cache-Control':'no-cache'}
-    });
-    if(!r.ok) return;
-
-    const html = await r.text();
-    const m = html.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
-    if(!m) return;
-
-    latestAppVersion = m[1];
-    const current = localStorage.getItem(APP_VERSION_KEY);
-
-    if(current && current !== latestAppVersion){
-      showUpdateBanner();
-    }else if(!current){
-      localStorage.setItem(APP_VERSION_KEY, latestAppVersion);
-    }
-  }catch(e){
-    // Offline: silently ignore.
-  }
-}
-
-function showUpdateBanner(){
-  if(document.getElementById('appUpdateBanner')) return;
-
-  const banner=document.createElement('div');
-  banner.id='appUpdateBanner';
-  banner.innerHTML=`
-    <div style="
-      position:fixed;left:12px;right:12px;bottom:14px;z-index:99999;
-      background:#166534;color:white;padding:14px;border-radius:14px;
-      box-shadow:0 5px 25px #0005;font-family:Arial,'Noto Sans Tamil',sans-serif;
-    ">
-      <div style="font-weight:bold;font-size:16px">🔄 புதிய App Version கிடைக்கிறது</div>
-      <div style="font-size:13px;margin:5px 0 10px">புதிய மாற்றங்களைப் பெற Update Now அழுத்துங்கள்.</div>
-      <button id="updateNowBtn" style="
-        background:white;color:#166534;border:0;border-radius:9px;
-        padding:9px 14px;font-weight:bold;cursor:pointer;
-      ">Update Now</button>
-      <button id="updateLaterBtn" style="
-        background:transparent;color:white;border:1px solid #ffffff99;
-        border-radius:9px;padding:8px 12px;margin-left:6px;cursor:pointer;
-      ">Later</button>
-    </div>`;
-  document.body.appendChild(banner);
-
-  document.getElementById('updateNowBtn').onclick=()=>{
-    localStorage.setItem(APP_VERSION_KEY, latestAppVersion || Date.now());
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.getRegistration().then(reg=>{
-        if(reg) reg.update().catch(()=>{});
-        setTimeout(()=>location.reload(true),500);
-      });
-    }else{
-      location.reload(true);
-    }
-  };
-  document.getElementById('updateLaterBtn').onclick=()=>{
-    banner.remove();
-  };
-}
-
-/* Check after the page loads, then periodically while the app is open. */
-window.addEventListener('load',()=>{
-  setTimeout(checkAppVersion,2500);
-  setInterval(checkAppVersion,5*60*1000);
-});
-</script>
-
 </body>
 </html>
