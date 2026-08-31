@@ -241,14 +241,27 @@ function localSave(){
   try{
     localStorage.setItem(KEY,JSON.stringify(db));
   }catch(err){
-    // Prevent QuotaExceededError from crashing the app.
     if(err && (err.name==='QuotaExceededError' || /quota/i.test(err.message||''))){
       const copy=JSON.parse(JSON.stringify(db));
-      // Keep the newest records and remove photos from oldest records first.
+      let saved=false;
+      // Remove oldest photos first until the database fits.
       for(let i=0;i<copy.sheep.length;i++){
-        if(copy.sheep[i].photo){ copy.sheep[i].photo=''; try{localStorage.setItem(KEY,JSON.stringify(copy)); db=copy; break;}catch(e){} }
+        if(copy.sheep[i].photo){
+          copy.sheep[i].photo='';
+          try{
+            localStorage.setItem(KEY,JSON.stringify(copy));
+            db=copy; saved=true;
+            break;
+          }catch(e){}
+        }
       }
-      alert('LocalStorage இடம் நிறைந்ததால் பழைய ஆட்டுப் புகைப்படங்கள் மட்டும் நீக்கப்பட்டு data பாதுகாக்கப்பட்டது.');
+      if(!saved){
+        // Last-resort: keep all records but no photos.
+        copy.sheep.forEach(x=>x.photo='');
+        localStorage.setItem(KEY,JSON.stringify(copy));
+        db=copy;
+      }
+      alert('LocalStorage இடம் குறைவாக உள்ளது. பழைய ஆட்டுப் புகைப்படங்கள் மட்டும் நீக்கப்பட்டு data பாதுகாக்கப்பட்டது.');
     }else{ throw err; }
   }
   refresh();
@@ -264,7 +277,7 @@ function googlePostSave(){
     }
     const form=document.createElement('form');
     form.method='POST'; form.action=apiUrl; form.target='googleSaveFrame'; form.style.display='none';
-    const a=document.createElement('input'); a.name='action'; a.value='replace'; form.appendChild(a);
+    const a=document.createElement('input'); a.name='action'; a.value='merge'; form.appendChild(a);
     const b=document.createElement('input'); b.name='payload'; b.value=JSON.stringify(db); form.appendChild(b);
     document.body.appendChild(form); form.submit(); form.remove();
     setTimeout(()=>setStatus('✓ Google Sheets-க்கு data அனுப்பப்பட்டது'),800);
@@ -282,7 +295,12 @@ function pullFromGoogle(){
     try{
       if(!out.ok) throw new Error(out.error||'Read failed');
       db={...EMPTY_DB,...out.db};
-      localStorage.setItem(KEY,JSON.stringify(db)); refresh();
+      try{ localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){
+        const copy=JSON.parse(JSON.stringify(db));
+        copy.sheep.forEach(x=>x.photo='');
+        try{localStorage.setItem(KEY,JSON.stringify(copy)); db=copy;}catch(_){ }
+      }
+      refresh();
       setStatus('✓ Google-லிருந்து data update செய்யப்பட்டது');
     }catch(err){setStatus('Google data பெற முடியவில்லை: '+err.message,false);}
     finally{delete window[cb]; if(tag) tag.remove();}
@@ -328,7 +346,7 @@ function refresh(){
  $('commonTable').innerHTML=(db.common||[]).map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.type)}</td><td>${money(x.amount)}</td><td>${x.date}</td></tr>`).join('');
  $('salesTable').innerHTML=db.sales.map(x=>`<tr><td>${esc(x.batch)}</td><td>${esc(x.sheep||'முழு பேட்ச்')}</td><td>${esc(x.buyer)}</td><td>${x.weight}</td><td>${money(x.kgPrice)}</td><td>${money(x.total)}</td></tr>`).join('');
 }
-async function compressImage(file,maxW=480,maxH=480,maxBytes=120000){
+async function compressImage(file,maxW=480,maxH=480,maxBytes=30000){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onerror=()=>reject(new Error('Photo read failed'));
@@ -343,7 +361,7 @@ async function compressImage(file,maxW=480,maxH=480,maxBytes=120000){
         const ctx=canvas.getContext('2d');
         ctx.drawImage(img,0,0,canvas.width,canvas.height);
         let quality=.60, data='';
-        do{ data=canvas.toDataURL('image/jpeg',quality); quality-=.08; }while(data.length>maxBytes*1.37 && quality>=.28);
+        do{ data=canvas.toDataURL('image/jpeg',quality); quality-=.08; }while(data.length>maxBytes*1.37 && quality>=.22);
         resolve(data);
       };
       img.src=reader.result;
