@@ -1,0 +1,8 @@
+{
+  "name": "Male Sheep Management",
+  "description": "Male sheep and ram farm management app with batch tracking, feed consumption, health monitoring, weight logs, vaccinations, sales, and Google Sheets sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

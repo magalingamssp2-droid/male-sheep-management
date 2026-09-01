@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.MaleSheepManagement" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#166534</item>
+        <item name="android:navigationBarColor">#F4F7F4</item>
+    </style>
+</resources>
